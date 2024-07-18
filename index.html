@@ -1,0 +1,723 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Blind</title>
+		<meta charset="utf-8">
+        <link rel="icon" type="image/x-icon" href="./favicon.png">
+	</head>
+	<body>
+		<script src="./simple.js">
+
+function Piece(row, col){
+    this.home_row = row
+    this.home_col = col
+
+    this.curr_row = this.home_row
+    this.curr_col = this.home_col
+    this.curr_oriented = true
+
+    this.animating = false
+
+    this.prev_row = null
+    this.prev_col = null
+    this.prev_oriented = null
+
+    this.anim_start = null
+    this.anim_duration = null
+
+    this.draw = function(){
+
+        // save()
+        // translate(100,100)
+
+        curr_piece_center_x = game_x + face_width*(this.curr_col+0.5)
+        curr_piece_center_y = game_y + face_height*(this.curr_row+1)
+        
+        if(this.animating){
+            anim_completion = (Date.now()-this.anim_start)/this.anim_duration
+
+            if(anim_completion >= 1){
+                this.animating = false
+                piece_center_x = curr_piece_center_x
+                piece_center_y = curr_piece_center_y
+                save()
+                translate(piece_center_x, piece_center_y)
+            }
+            else{
+
+                prev_piece_center_x = game_x + face_width*(this.prev_col+0.5)
+                prev_piece_center_y = game_y + face_height*(this.prev_row+1)
+
+                piece_center_x = prev_piece_center_x + anim_completion*(curr_piece_center_x-prev_piece_center_x)
+                piece_center_y = prev_piece_center_y + anim_completion*(curr_piece_center_y-prev_piece_center_y)
+                save()
+                translate(piece_center_x, piece_center_y)
+                if(this.curr_oriented != this.prev_oriented){
+                    rotate(180 - 180*anim_completion)
+                }
+            }
+        }
+        else{
+            piece_center_x = curr_piece_center_x
+            piece_center_y = curr_piece_center_y
+            save()
+            translate(piece_center_x, piece_center_y)
+        }
+
+
+        top_color = get_color(color_scheme[this.home_row][this.home_col])
+        bottom_color = get_color(color_scheme[this.home_row+1][this.home_col])
+
+        if(!this.curr_oriented){
+            temp = top_color
+            top_color = bottom_color
+            bottom_color = temp
+        }
+
+        rectangle(-(piece_width/2), -(piece_height/2), piece_width, piece_height/2, (blind_mode ? "white" : top_color))
+        rectangle(-(piece_width/2), 0, piece_width, piece_height/2, (blind_mode ? "white" : bottom_color))
+        
+        if(selected_row == this.curr_row && selected_col == this.curr_col){
+            if(top_selected){
+                rectangle(-(piece_width/2), -(piece_height/2), piece_width, piece_height/2, "black")
+            }
+            else{
+                rectangle(-(piece_width/2), 0, piece_width, piece_height/2, "black")
+            }
+        }
+
+        // scale(7,7)
+
+        // circle(0,0,10000,"white")
+
+        line(-(piece_width/2), -(piece_height/2),  (piece_width/2), -(piece_height/2), piece_border_width, mixColor(50,50,50))
+        line( (piece_width/2), -(piece_height/2),  (piece_width/2),  (piece_height/2), piece_border_width, mixColor(50,50,50))
+        line( (piece_width/2),  (piece_height/2), -(piece_width/2),  (piece_height/2), piece_border_width, mixColor(50,50,50))
+        line(-(piece_width/2),  (piece_height/2), -(piece_width/2), -(piece_height/2), piece_border_width, mixColor(50,50,50))
+
+        circle(-(piece_width/2), -(piece_height/2), piece_border_width*0.45, mixColor(50,50,50))
+        circle(-(piece_width/2), +(piece_height/2), piece_border_width*0.45, mixColor(50,50,50))
+        circle(+(piece_width/2), -(piece_height/2), piece_border_width*0.45, mixColor(50,50,50))
+        circle(+(piece_width/2), +(piece_height/2), piece_border_width*0.45, mixColor(50,50,50))
+        
+        restore()
+    }
+}
+
+function get_color(letter){
+    switch(letter){
+        case "W": return(mixColor(255,255,255))
+        case "G": return(mixColor(50,255,50))
+        case "R": return(mixColor(255,50,50))
+        case "Y": return(mixColor(255,255,50))
+        case "B": return(mixColor(30,100,255))
+        case "O": return(mixColor(255,150,50))
+        default: return(mixColor(0,0,0))
+    }
+}
+
+function start(){
+
+    click_state = 0
+    space_state = 0
+
+    updatesPerSecond = 60
+
+    menu_items = {
+        "size": {
+            "item_no": 0,
+            "title": "Size (columns x rows)",
+            "options": ["3x2","3x4","6x2"],
+            "selected":0
+        },
+        "cycle_breaks": {
+            "item_no": 1,
+            "title": "Cycle breaks",
+            "options": ["Allow","Avoid"],
+            "selected": 1
+        },
+        "reload": {
+            "item_no": 2,
+            "title": "Reload & scramble",
+            "options": ["Reload now!"],
+            "selected": -1
+        }
+    }
+
+    load_game()
+}
+
+function load_game(){
+
+    switch(menu_items.size.selected){
+        case 0:
+            n_cols = 3
+            n_rows = 3
+            color_scheme = [
+                "GRY",
+                "WGR",
+                "ROB"
+            ]
+            break
+
+        case 1:
+            n_cols = 3
+            n_rows = 5
+            color_scheme = [
+                "GRY",
+                "WGR",
+                "ROB",
+                "OYW",
+                "BGO"
+            ]
+            break
+        
+        case 2:
+            n_cols = 6
+            n_rows = 3
+            color_scheme = [
+                "GRYBOW",
+                "WGRYBO",
+                "ROBGWY"
+            ]
+            break
+    }
+
+    switch(menu_items.cycle_breaks.selected){
+        case 0:
+            all_one_cycle = false
+            break
+        
+        case 1:
+            all_one_cycle = true
+            break
+    }
+
+    min_padding = totalHeight*0.06
+    avail_width = totalWidth - min_padding*2
+    avail_height = totalHeight - min_padding*2
+
+    window_ratio = totalWidth/totalHeight
+    game_ratio = n_cols/n_rows
+
+    console.log(window_ratio)
+    console.log(game_ratio)
+
+    blind_mode = false
+    menu_mode = false
+    info_mode = false
+
+    if(game_ratio > window_ratio){
+        // width is limiting
+        game_x = min_padding
+        game_width = avail_width
+
+        game_height = game_width/game_ratio
+        game_y = (totalHeight-game_height)/2
+    }
+    else{
+        // height is limiting
+        game_y = min_padding
+        game_height = avail_height
+    
+        game_width = game_height*game_ratio
+        game_x = (totalWidth-game_width)/2
+
+    }
+
+    menu_icon_size = min_padding
+    menu_icon_padding_x = menu_icon_size*0.15
+    menu_icon_padding_y = menu_icon_size*0.25
+    menu_icon_line_width = menu_icon_size*0.1
+    
+    info_icon_size = min_padding
+    info_icon_padding_x = menu_icon_size*0.15
+    info_icon_padding_y = menu_icon_size*0.25
+    
+    if(totalHeight > totalWidth){
+        // mobile
+        menu_width = totalWidth
+        info_width = totalWidth
+    }
+    else{
+        menu_width = totalWidth*0.7
+        info_width = totalWidth*0.5
+    }
+
+    menu_padding_x = menu_width*0.15
+    menu_padding_top = totalHeight*0.15
+    menu_options_y_offset = totalHeight*0.03
+    space_between_menu_items = totalHeight*0.15
+    space_between_menu_options = menu_width*0.1
+    menu_option_height = totalHeight*0.05
+    menu_text_size = menu_option_height*0.3
+    
+    info_padding_x = info_width*0.05
+    info_padding_top = totalHeight*0.10
+    info_text_size = totalHeight*0.05*0.3
+    info_line_spacing = totalHeight*0.02
+
+
+    // game_x = 100
+    // game_y = 100
+    // game_width = totalWidth-200
+    // game_height = totalHeight-200
+
+
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    selected_row = null
+    selected_col = null
+    top_selected = null
+
+
+    face_width = game_width/n_cols
+    face_height = game_height/n_rows
+
+    piece_width = face_width*0.3
+    piece_height = face_height*0.65
+
+    piece_border_width = game_width/350
+
+    draw_background()
+
+    pieces = []
+
+    for(row = 0; row < n_rows-1; row++){
+        for(col = 0; col < n_cols; col++){
+            pieces.push(new Piece(row,col))
+        }
+    }
+
+    scramble()
+
+    pieces.forEach(item => item.draw())
+
+}
+
+function update(){
+
+    
+
+        if(space_state == 1){
+            space_state = 2
+        }
+        if(space_state == 0 && keyboard.space){
+            space_state = 1
+        }
+        if(!keyboard.space){
+            space_state = 0
+        }
+
+        if(space_state == 1){
+            blind_mode = !blind_mode
+            console.log(blind_mode)
+        }
+
+        if(click_state == 1){
+            click_state = 2
+        }
+        if(click_state == 0 && mouse.left){
+            click_state = 1
+        }
+        if(!mouse.left){
+            click_state = 0
+        }
+        
+        if(click_state == 1){
+
+            if(
+                mouse.x > totalWidth - menu_icon_size &&
+                mouse.x < totalWidth &&
+                mouse.y > 0 &&
+                mouse.y < menu_icon_size
+            ){
+                menu_mode = !menu_mode
+                info_mode = false
+            }
+            else if(
+                mouse.x > totalWidth - info_icon_size &&
+                mouse.x < totalWidth &&
+                mouse.y > totalHeight-menu_icon_size &&
+                mouse.y < totalHeight
+            ){
+                info_mode = !info_mode
+                menu_mode = false
+            }
+
+            if(!menu_mode && !info_mode){
+
+                for(let i = 0; i < pieces.length; i++){
+                    piece = pieces[i]
+                    
+                    piece_center_x = game_x + face_width*(piece.curr_col+0.5)
+                    piece_center_y = game_y + face_height*(piece.curr_row+1)
+                    
+                    if(
+                        mouse.x > piece_center_x - piece_width/2 &&
+                        mouse.x < piece_center_x + piece_width/2 &&
+                        mouse.y > piece_center_y - piece_height/2 &&
+                        mouse.y < piece_center_y + piece_height/2
+                        ){
+                            
+                            if(selected_row != null){
+                            // something already selected
+                            if(
+                                selected_row == piece.curr_row &&
+                                selected_col == piece.curr_col
+                                ){
+                                    if((mouse.y < piece_center_y) == top_selected){
+                                        // unselect
+                                        selected_row = null
+                                        selected_col = null
+                                        top_selected = null
+                                    }
+                                    else{
+                                        // illegal move (flipping piece), do nothing
+                                    }
+                                }
+                                else{
+                                    swap(selected_row, selected_col, piece.curr_row, piece.curr_col, (mouse.y < piece_center_y) == top_selected, 500)
+                                    selected_row = null
+                                    selected_col = null
+                                    top_selected = null
+                                }
+                            }
+                            else{
+                                selected_row = piece.curr_row
+                            selected_col = piece.curr_col
+                            
+                            if(mouse.y < piece_center_y){
+                                top_selected = true
+                            }
+                            else{
+                                top_selected = false
+                            }
+                        }
+                        break
+                    }
+                    //swap(0, 0, 1, 3, false, 1000)
+                }
+                if(
+                    (
+                        mouse.x < game_x ||
+                        mouse.x > game_x + game_width ||
+                        mouse.y < game_y ||
+                        mouse.y > game_y + game_height
+                    ) &&
+                    !(
+                        mouse.x > totalWidth - menu_icon_size &&
+                        mouse.x < totalWidth &&
+                        mouse.y > 0 &&
+                        mouse.y < menu_icon_size
+                    ) &&
+                    !(
+                        mouse.x > totalWidth - info_icon_size &&
+                        mouse.x < totalWidth &&
+                        mouse.y > totalHeight-menu_icon_size &&
+                        mouse.y < totalHeight
+                    )
+                ){
+                    blind_mode = !blind_mode
+                    console.log(blind_mode)
+                }
+            }
+            else if(menu_mode){
+                for(const [key, menu_item] of Object.entries(menu_items)) {
+                    for(i = 0; i < menu_item.options.length; i++){
+                        [x,y,width,height] = get_menu_item_pos(menu_item.item_no, menu_item.options.length, i)
+                        if(
+                            mouse.x > x &&
+                            mouse.x < x+width &&
+                            mouse.y > y &&
+                            mouse.y < y+height
+                        ){
+                            if(key == "reload"){
+                                load_game()
+                            }
+                            else{
+                                menu_item.selected = i
+                            }
+                        }
+                    }
+                }
+                if(
+                    mouse.x < totalWidth-menu_width
+                    ){
+                        menu_mode = false
+                    }
+                }
+            else if(info_mode){
+                if(
+                    mouse.x < totalWidth-info_width
+                    ){
+                        info_mode = false
+                    }
+                }
+        }
+        
+    draw_background()
+    pieces.forEach(item => item.draw())
+    if(menu_mode){
+        draw_menu()
+    }
+    if(info_mode){
+        draw_info()
+    }
+    draw_menu_icon()
+    draw_info_icon()
+}
+
+function get_menu_item_pos(item_no, n_options, option_no){
+    
+    width = (menu_width - menu_padding_x*2 - space_between_menu_options*(n_options-1))/n_options
+    height = menu_option_height
+    x = totalWidth - menu_width + menu_padding_x + width*option_no + space_between_menu_options*option_no
+    y = menu_padding_top + space_between_menu_items*item_no + menu_options_y_offset
+    
+    return([x,y,width,height])
+}
+
+function draw_menu(){
+    rectangle(totalWidth-menu_width,0,menu_width,totalHeight,mixColor(70,70,70))
+    for(const [key, menu_item] of Object.entries(menu_items)) {
+        text(totalWidth-menu_width+menu_padding_x, menu_padding_top + space_between_menu_items*menu_item.item_no, menu_text_size*1.2, menu_item.title, "white")
+        for(i = 0; i < menu_item.options.length; i++){
+            [x,y,width,height] = get_menu_item_pos(menu_item.item_no, menu_item.options.length, i)
+            if(menu_item.selected == i){
+                rectangle(x,y,width,height,mixColor(150,150,150))
+            }
+            else{
+                rectangle(x,y,width,height,mixColor(60,60,60))
+            }
+            text(x + width*0.1, y + height*0.6, menu_text_size, menu_item.options[i], "white")
+        }
+    }
+}
+
+function draw_info(){
+    rectangle(totalWidth-info_width,0,info_width,totalHeight,mixColor(70,70,70))
+    text(totalWidth-info_width+info_padding_x, info_padding_top, info_text_size*1.2, "Welcome to Viktor Zenk's", "white")
+    text(totalWidth-info_width+info_padding_x, info_padding_top + info_line_spacing*1.5, info_text_size*1.5, "BLD trainer!", "white")
+
+    info_text = 
+`
+I made this as a tool to teach people
+how BLD solving works,allowing you
+to practice concepts like swaps,
+buffers, cycles, etc., without pesky
+algorithms getting in the way.
+
+How to use:
+Select a piece by clicking it.
+Next, click on a different piece, and
+the two pieces will swap positions.
+
+Typically, you would pick a buffer
+piece (e.g. A), and always select
+that piece first.
+
+To don the "blindfold" click anywhere
+outside the puzzle section of the
+screen, or use spacebar.
+
+The idea is that you memo, then don
+the blindfold, then solve using the
+swapping operations described above.
+
+In the menu you can set puzzle size,
+and whether to allow cycle breaks in
+the scramble.
+
+
+This tool is not a tutorial on its
+own. You will still need somebody to
+teach you how BLD solving works, but
+I think this can be helpful for 
+explaining the conceps, and
+pracitcing them hands-on. 
+
+Let me know if you have questions! :)
+`
+    info_lines = info_text.split('\n')
+    info_lines.shift()
+    info_lines.pop()
+
+    for(i = 0; i < info_lines.length; i++){
+        text(totalWidth-info_width+info_padding_x, info_padding_top + info_line_spacing*(i+3), info_text_size, info_lines[i], "white")
+    }
+
+    // text(totalWidth-info_width+info_padding_x, info_padding_top + info_line_spacing*1, info_text_size, "I made this as a tool to teach people how BLD solving works,", "white")
+    // text(totalWidth-info_width+info_padding_x, info_padding_top + info_line_spacing*2, info_text_size, "allowing you to practice concepts like piece swaps, buffers,", "white")
+    // text(totalWidth-info_width+info_padding_x, info_padding_top + info_line_spacing*3, info_text_size, "cycles, etc., without pesky algorithms getting in the way.", "white")
+}
+
+function swap(row1, col1, row2, col2, keep_orientation,anim_duration){
+    for(let i = 0; i < pieces.length; i++){
+        if(pieces[i].curr_row == row1 && pieces[i].curr_col == col1){
+            ix1 = i
+        }
+        if(pieces[i].curr_row == row2 && pieces[i].curr_col == col2){
+            ix2 = i
+        }
+    }
+
+    if(ix1 == ix2){
+        // rotating one piece
+        pieces[ix1].animating = true
+        pieces[ix1].prev_row = row1
+        pieces[ix1].prev_col = col1
+        pieces[ix1].prev_oriented = pieces[ix1].curr_oriented
+        
+        // pieces[ix1].curr_row = row1
+        // pieces[ix1].curr_col = col1
+        pieces[ix1].anim_start = Date.now()
+        pieces[ix1].anim_duration = anim_duration
+        if(keep_orientation){
+            pieces[ix1].curr_oriented = pieces[ix1].prev_oriented
+        }
+        else{
+            pieces[ix1].curr_oriented = !pieces[ix1].prev_oriented
+        }
+        
+    }
+    else{
+
+        pieces[ix1].animating = true
+        pieces[ix1].prev_row = pieces[ix1].curr_row
+        pieces[ix1].prev_col = pieces[ix1].curr_col
+        pieces[ix1].prev_oriented = pieces[ix1].curr_oriented
+        
+        pieces[ix1].curr_row = row2
+        pieces[ix1].curr_col = col2
+        pieces[ix1].anim_start = Date.now()
+        pieces[ix1].anim_duration = anim_duration
+        if(keep_orientation){
+            pieces[ix1].curr_oriented = pieces[ix1].prev_oriented
+        }
+        else{
+            pieces[ix1].curr_oriented = !pieces[ix1].prev_oriented
+        }
+        
+        pieces[ix2].animating = true
+        pieces[ix2].prev_row = pieces[ix2].curr_row
+        pieces[ix2].prev_col = pieces[ix2].curr_col
+        pieces[ix2].prev_oriented = pieces[ix2].curr_oriented
+        
+        pieces[ix2].curr_row = row1
+        pieces[ix2].curr_col = col1
+        pieces[ix2].anim_start = Date.now()
+        pieces[ix2].anim_duration = anim_duration
+        if(keep_orientation){
+            pieces[ix2].curr_oriented = pieces[ix2].prev_oriented
+        }
+        else{
+            pieces[ix2].curr_oriented = !pieces[ix2].prev_oriented
+        }
+
+    }
+
+    // if(!keep_orientation && row1 == row2 && col1 == col2){
+    //     // rotating one piece, will have its orientation toggled twice above, so toggling once more
+    //     pieces[ix1].curr_oriented = !pieces[ix1].curr_oriented
+    // }
+    
+}
+
+function draw_background(){
+    circle(0,0,10000,mixColor(50,50,50))
+
+    for(row = 0; row < n_rows; row++){
+        for(col = 0; col < n_cols; col++){
+            rectangle(game_x+face_width*col, game_y+face_height*row, face_width, face_height, (blind_mode ? "white" : get_color(color_scheme[row][col])))
+        }
+    }
+
+    for(row = 0; row < n_rows-1; row++){
+        for(col = 0; col < n_cols; col++){
+            piece_center_x = game_x + face_width*(col+0.5)
+            piece_center_y = game_y + face_height*(row+1)
+        
+            text(piece_center_x - piece_width*0.15, piece_center_y-piece_height*0.55,piece_height*0.2, alphabet[(row*2  )*n_cols + col], mixColor(50,50,50))
+            text(piece_center_x - piece_width*0.15, piece_center_y+piece_height*0.70,piece_height*0.2, alphabet[(row*2+1)*n_cols + col], mixColor(50,50,50))
+        }
+    }
+}
+
+function draw_menu_icon(){
+    line(totalWidth - menu_icon_size + menu_icon_padding_x, menu_icon_padding_y, totalWidth - menu_icon_padding_x, menu_icon_padding_y, menu_icon_line_width, "white")
+    line(totalWidth - menu_icon_size + menu_icon_padding_x, menu_icon_size/2, totalWidth - menu_icon_padding_x, menu_icon_size/2, menu_icon_line_width, "white")
+    line(totalWidth - menu_icon_size + menu_icon_padding_x, menu_icon_size - menu_icon_padding_y, totalWidth - menu_icon_padding_x, menu_icon_size - menu_icon_padding_y, menu_icon_line_width, "white")
+}
+
+function draw_info_icon(){
+    circle(totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2, info_icon_size/2, "white")
+    circle(totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2, info_icon_size/2 - info_icon_size*0.1,mixColor(50,50,50))
+    circle(totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2 - info_icon_size*0.2, info_icon_size*0.07, "white")
+    circle(totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2 + info_icon_size*0.2, info_icon_size*0.07, "white")
+    circle(totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2 - info_icon_size*0, info_icon_size*0.07, "white")
+    line(totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2 + info_icon_size*0.2, totalWidth - info_icon_size/2 - info_icon_padding_x/2, totalHeight - info_icon_size/2 - info_icon_padding_y/2 - info_icon_size*0.0, info_icon_size*0.14, "white")
+}
+
+function scramble(){
+    for(let i = 0; i < 100; i++){
+        let row1 = getRandomInt(n_rows-1)
+        let col1 = getRandomInt(n_cols)
+        let row2 = getRandomInt(n_rows-1)
+        let col2 = getRandomInt(n_cols)
+
+        if(row1 == row2 && col1 == col2){
+            continue
+        }
+        else{
+            swap(row1, col1, row2, col2, Math.random < 0.5, 0)
+        }
+    }
+
+    if(all_one_cycle){
+        if(!check_if_all_one_cycle()){
+            scramble()
+            return
+        }
+    }
+    else{
+        return
+    }
+}
+
+function check_if_all_one_cycle(){
+    current_piece_row = 0
+    current_piece_col = 0
+
+    pieces_visited = 0
+
+    while(true){
+        for(let i = 0; i < pieces.length; i++){
+            let piece = pieces[i]
+
+            if(
+                piece.curr_row == current_piece_row &&
+                piece.curr_col == current_piece_col
+            ){
+                pieces_visited++
+                current_piece_row = piece.home_row
+                current_piece_col = piece.home_col
+                break
+            }
+        }
+
+        if(current_piece_row == 0 && current_piece_col == 0){
+            break
+        }
+    }
+
+    return(pieces_visited == (n_rows-1)*n_cols)
+}
+
+function getRandomInt(max) {
+  return Math.floor(Math.random() * max);
+}
+
+		</script>
+	</body>
+</html>
